@@ -3,14 +3,17 @@ ui/app.py
 
 Main Streamlit application for the Credit Risk Intelligence Platform.
 Five sections as required: EDA, Risk Prediction, Explainability, Business Rules,
-Talk-to-Data chatbot.
+Talk-to-Data chatbot. Charts are interactive (Plotly) rather than static images
+wherever the underlying data supports it.
 """
 import sys
 sys.path.insert(0, ".")
 
 import json
 import joblib
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.ml.predict import predict_risk, prepare_features
@@ -21,25 +24,49 @@ st.set_page_config(page_title="Credit Risk Intelligence Platform", page_icon="�
 
 # ---------------------------------------------------------------------------
 # Design system — deliberate dark navy/teal palette, IBM Plex Sans throughout.
-# Injected once here rather than per-page.
+# Includes entrance animations and hover interactions (fadeInUp on cards,
+# lift-on-hover, animated risk badges) so the interface feels alive rather
+# than a static report.
 # ---------------------------------------------------------------------------
+GREEN, AMBER, RED, TEAL = "#4C9A6B", "#E0A458", "#C0392B", "#3FA796"
+BG, CARD, TEXT, MUTED = "#0B1420", "#131F30", "#E8EDF3", "#8A97AB"
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 html, body, [class*="css"] { font-family: 'IBM Plex Sans', sans-serif; }
-
-.block-container { max-width: 1100px; padding-top: 2rem; }
-
+.block-container { max-width: 1150px; padding-top: 2rem; }
 h1, h2, h3 { font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; letter-spacing: -0.01em; }
 
-.risk-card {
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+}
+@keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+}
+
+.risk-card, .rule-card, .factor-card, .kpi-card {
     padding: 1.5rem 1.75rem;
     border-radius: 10px;
     border: 1px solid rgba(255,255,255,0.08);
     background: #131F30;
     margin-bottom: 1rem;
+    animation: fadeInUp 0.5s ease-out both;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
+.risk-card:hover, .rule-card:hover, .factor-card:hover, .kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 28px rgba(63,167,150,0.18);
+    border-color: #3FA796;
+}
+
 .risk-badge {
     display: inline-block;
     padding: 0.35rem 0.9rem;
@@ -47,25 +74,42 @@ h1, h2, h3 { font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; letter-
     font-weight: 600;
     font-size: 0.95rem;
     letter-spacing: 0.02em;
+    animation: fadeInUp 0.4s ease-out both;
 }
 .risk-low { background: rgba(76,154,107,0.18); color: #6FCB9A; border: 1px solid #4C9A6B; }
 .risk-medium { background: rgba(224,164,88,0.18); color: #F0C079; border: 1px solid #E0A458; }
 .risk-high { background: rgba(192,57,43,0.18); color: #F08A7E; border: 1px solid #C0392B; }
 
-.kpi-number {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 2.1rem;
-    font-weight: 500;
-    color: #E8EDF3;
+.live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #3FA796; margin-right: 6px; animation: pulse 2s ease-in-out infinite;
 }
-.kpi-label {
-    font-size: 0.85rem;
-    color: #8A97AB;
-    margin-bottom: 0.2rem;
+
+.kpi-number { font-family: 'IBM Plex Mono', monospace; font-size: 2.1rem; font-weight: 500; color: #E8EDF3; }
+.kpi-label { font-size: 0.85rem; color: #8A97AB; margin-bottom: 0.2rem; }
+.insight-line { border-left: 3px solid #3FA796; padding-left: 0.9rem; margin: 0.6rem 0; color: #C7D1DD; animation: fadeInUp 0.5s ease-out both; }
+
+.chat-bubble-user {
+    background: #1B2A40; border: 1px solid #2A3A50; border-radius: 12px 12px 2px 12px;
+    padding: 0.8rem 1.1rem; margin: 0.6rem 0; animation: fadeInUp 0.35s ease-out both; color: #E8EDF3;
 }
-.insight-line { border-left: 3px solid #3FA796; padding-left: 0.9rem; margin: 0.6rem 0; color: #C7D1DD; }
+.chat-bubble-answer {
+    background: rgba(63,167,150,0.10); border: 1px solid rgba(63,167,150,0.35); border-radius: 12px 12px 12px 2px;
+    padding: 0.9rem 1.1rem; margin: 0.6rem 0 1.2rem 0; animation: fadeInUp 0.45s ease-out 0.1s both; color: #E8EDF3;
+}
+
+/* Streamlit's own buttons/inputs pick up a subtle lift too */
+.stButton > button { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(63,167,150,0.25); }
 </style>
 """, unsafe_allow_html=True)
+
+PLOTLY_LAYOUT = dict(
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font={"color": TEXT, "family": "IBM Plex Sans"},
+    margin=dict(l=10, r=20, t=50, b=10),
+)
 
 
 @st.cache_data
@@ -84,6 +128,70 @@ def load_model_and_meta():
 def risk_badge_html(band: str) -> str:
     cls = {"Low": "risk-low", "Medium": "risk-medium", "High": "risk-high"}[band]
     return f'<span class="risk-badge {cls}">{band} Risk</span>'
+
+
+def risk_gauge(proba: float, band: str):
+    """Interactive Plotly gauge — colored zones matching the risk bands, with
+    an animated needle-style threshold marker at the actual score."""
+    color = {"Low": GREEN, "Medium": AMBER, "High": RED}[band]
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=proba * 100,
+        number={"suffix": "%", "font": {"size": 42, "color": TEXT, "family": "IBM Plex Mono"}},
+        gauge={
+            "axis": {"range": [0, 100], "tickcolor": MUTED, "tickfont": {"color": MUTED, "size": 11}},
+            "bar": {"color": color, "thickness": 0.75},
+            "bgcolor": "rgba(0,0,0,0)",
+            "borderwidth": 0,
+            "steps": [
+                {"range": [0, 10], "color": "rgba(76,154,107,0.20)"},
+                {"range": [10, 35], "color": "rgba(224,164,88,0.20)"},
+                {"range": [35, 100], "color": "rgba(192,57,43,0.20)"},
+            ],
+            "threshold": {"line": {"color": color, "width": 3}, "thickness": 0.9, "value": proba * 100},
+        },
+    ))
+    fig.update_layout(**{**PLOTLY_LAYOUT, "height": 260, "margin": dict(l=25, r=25, t=35, b=10)})
+    return fig
+
+
+def shap_diverging_bar(explanation: dict):
+    """Interactive horizontal diverging bar chart of SHAP contributions —
+    replaces the old static list, adds hover tooltips and exact values."""
+    feats = [f["feature"] for f in explanation["top_features"]][::-1]
+    vals = [f["shap_contribution"] for f in explanation["top_features"]][::-1]
+    raw_vals = [f["value"] for f in explanation["top_features"]][::-1]
+    colors = [RED if v > 0 else GREEN for v in vals]
+
+    fig = go.Figure(go.Bar(
+        x=vals, y=feats, orientation="h", marker_color=colors,
+        text=[f"{v:+.3f}" for v in vals], textposition="outside",
+        customdata=raw_vals,
+        hovertemplate="<b>%{y}</b><br>value = %{customdata}<br>SHAP impact = %{x:+.3f}<extra></extra>",
+    ))
+    fig.update_layout(
+        **{**PLOTLY_LAYOUT, "height": 340, "margin": dict(l=10, r=60, t=20, b=30)},
+        xaxis_title="SHAP contribution (negative = lowers risk, positive = raises risk)",
+        xaxis=dict(gridcolor="rgba(255,255,255,0.08)", zerolinecolor="rgba(255,255,255,0.25)"),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.0)"),
+    )
+    return fig
+
+
+def styled_bar(x, y, title, orientation="v", colors=None, xlabel=None, ylabel=None, height=380):
+    if orientation == "v":
+        fig = go.Figure(go.Bar(x=x, y=y, marker_color=colors or TEAL,
+                                text=[f"{v:.1f}" for v in y], textposition="outside"))
+    else:
+        fig = go.Figure(go.Bar(x=x, y=y, orientation="h", marker_color=colors or TEAL,
+                                text=[f"{v:.1f}" for v in x], textposition="outside"))
+    fig.update_layout(
+        **{**PLOTLY_LAYOUT, "height": height},
+        title={"text": title, "font": {"size": 15, "color": TEXT}},
+        xaxis=dict(title=xlabel, gridcolor="rgba(255,255,255,0.08)"),
+        yaxis=dict(title=ylabel, gridcolor="rgba(255,255,255,0.08)"),
+    )
+    return fig
 
 
 # ---------------------------------------------------------------------------
@@ -112,19 +220,21 @@ if page == "Overview":
         "business rules, and a natural-language chatbot over the underlying data."
     )
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(f'<div class="risk-card"><div class="kpi-label">Applicants</div>'
-                     f'<div class="kpi-number">{len(df):,}</div></div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown(f'<div class="risk-card"><div class="kpi-label">Default Rate</div>'
-                     f'<div class="kpi-number">{df["TARGET"].mean()*100:.1f}%</div></div>', unsafe_allow_html=True)
-    with c3:
-        st.markdown(f'<div class="risk-card"><div class="kpi-label">Model ROC-AUC</div>'
-                     f'<div class="kpi-number">{meta["metrics"]["roc_auc"]:.3f}</div></div>', unsafe_allow_html=True)
-    with c4:
-        st.markdown(f'<div class="risk-card"><div class="kpi-label">Features Used</div>'
-                     f'<div class="kpi-number">{len(meta["feature_names"])}</div></div>', unsafe_allow_html=True)
+    cols = st.columns(4)
+    kpis = [
+        ("Applicants", f"{len(df):,}"),
+        ("Default Rate", f"{df['TARGET'].mean()*100:.1f}%"),
+        ("Model ROC-AUC", f"{meta['metrics']['roc_auc']:.3f}"),
+        ("Features Used", f"{len(meta['feature_names'])}"),
+    ]
+    for i, (col, (label, val)) in enumerate(zip(cols, kpis)):
+        with col:
+            st.markdown(
+                f'<div class="kpi-card" style="animation-delay:{i*0.08}s;">'
+                f'<div class="kpi-label"><span class="live-dot"></span>{label}</div>'
+                f'<div class="kpi-number">{val}</div></div>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown("### How this platform is put together")
     st.markdown("""
@@ -136,35 +246,115 @@ if page == "Overview":
     """)
 
 # ---------------------------------------------------------------------------
-# PAGE: EDA
+# PAGE: EDA — all charts are interactive Plotly, computed live from the data
 # ---------------------------------------------------------------------------
 elif page == "Data Exploration (EDA)":
     st.title("Data Exploration & Insights")
-    st.caption("Home Credit application data joined with bureau, previous-application, and POS/cash history.")
+    st.caption("Home Credit application data joined with bureau, previous-application, POS/cash, and credit-card history. Hover any chart to explore the exact numbers.")
 
-    charts = [
-        ("notebooks/eda_charts/01_target_distribution.png", "Severe class imbalance: only ~8% of applicants default — this drives the ROC-AUC/PR-AUC evaluation choice and imbalance handling in the ML pipeline."),
-        ("notebooks/eda_charts/02_default_by_age.png", "Default rate falls steadily with age, from ~11.4% (20-30) to ~4.9% (60-70)."),
-        ("notebooks/eda_charts/03_default_by_income_type.png", "Unemployed / maternity-leave applicants default 4-5x more often than Working or Pensioner applicants."),
-        ("notebooks/eda_charts/04_default_by_bureau_overdue.png", "An overdue loan at another bureau nearly doubles default risk (15.9% vs 8.0%)."),
-        ("notebooks/eda_charts/05_default_by_prior_refusal.png", "A prior refusal with this lender predicts future default (10.3% vs 7.0%)."),
-        ("notebooks/eda_charts/06_credit_income_ratio_dist.png", "Defaulters skew toward higher credit-to-income ratios."),
-        ("notebooks/eda_charts/07_missing_data.png", "~50 housing-quality columns are 50-70% missing — structural (tied to housing type), handled via the model's native missing-value support rather than imputation."),
-    ]
-    for path, caption in charts:
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.image(path, use_container_width=True)
-        with col2:
-            st.markdown(f'<div class="insight-line">{caption}</div>', unsafe_allow_html=True)
-        st.write("")
+    # 1. Target distribution
+    counts = df["TARGET"].value_counts()
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig = styled_bar(["Repaid (0)", "Default (1)"], counts.values,
+                          "Target Class Distribution — Severe Imbalance (~8% default)",
+                          colors=[GREEN, RED], ylabel="Applicant Count", height=380)
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.markdown(f'<div class="insight-line">Only <b>{df["TARGET"].mean()*100:.1f}%</b> of applicants '
+                     f'default — this drives the ROC-AUC/PR-AUC evaluation choice and imbalance handling '
+                     f'in the ML pipeline.</div>', unsafe_allow_html=True)
+
+    # 2. Default rate by age group
+    d = df.copy()
+    d["age_group"] = pd.cut(d["YEARS_BIRTH"], bins=[20, 30, 40, 50, 60, 70],
+                             labels=["20-30", "30-40", "40-50", "50-60", "60-70"])
+    grp = (d.groupby("age_group", observed=True)["TARGET"].mean() * 100)
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig = styled_bar(grp.index.astype(str), grp.values, "Default Rate by Age Group", ylabel="Default Rate (%)")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.markdown(f'<div class="insight-line">Default rate falls steadily with age, from '
+                     f'<b>{grp.iloc[0]:.1f}%</b> (20-30) to <b>{grp.iloc[-1]:.1f}%</b> (60-70).</div>',
+                     unsafe_allow_html=True)
+
+    # 3. Default rate by income type
+    grp = df.groupby("NAME_INCOME_TYPE")["TARGET"].agg(["mean", "count"])
+    grp = grp[grp["count"] > 50].sort_values("mean", ascending=True) * [100, 1]
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig = styled_bar(grp["mean"].values, grp.index.astype(str), "Default Rate by Income Type",
+                          orientation="h", xlabel="Default Rate (%)", height=340)
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        top = grp.sort_values("mean", ascending=False).iloc[0]
+        st.markdown(f'<div class="insight-line"><b>{top.name}</b> applicants default at '
+                     f'<b>{top["mean"]:.1f}%</b> — dramatically higher than salaried/pensioner applicants.</div>',
+                     unsafe_allow_html=True)
+
+    # 4. Bureau overdue history vs default
+    d = df.copy()
+    d["bureau_overdue"] = np.where(d["bureau_overdue_loan_count"].fillna(0) > 0, "Has Overdue Bureau Loan", "No Overdue Bureau Loan")
+    grp = d.groupby("bureau_overdue")["TARGET"].mean() * 100
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig = styled_bar(grp.index, grp.values, "External Bureau History vs Default Rate",
+                          colors=[RED, GREEN], ylabel="Default Rate (%)")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        lift = grp.max() / grp.min()
+        st.markdown(f'<div class="insight-line">An overdue bureau loan is associated with a '
+                     f'<b>{lift:.1f}x</b> higher default rate — one of the strongest signals in the dataset.</div>',
+                     unsafe_allow_html=True)
+
+    # 5. Prior refusal vs default
+    d = df.copy()
+    d["refused"] = np.where(d["prev_refused_count"].fillna(0) > 0, "Previously Refused", "Never Refused")
+    grp = d.groupby("refused")["TARGET"].mean() * 100
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig = styled_bar(grp.index, grp.values, "Prior Loan Refusal vs Default Rate",
+                          colors=[RED, GREEN], ylabel="Default Rate (%)")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.markdown(f'<div class="insight-line">A single past refusal with this lender predicts future '
+                     f'default — even one rejection materially changes risk.</div>', unsafe_allow_html=True)
+
+    # 6. Credit-income ratio distribution
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig = go.Figure()
+        for target, color, label in [(0, GREEN, "Repaid"), (1, RED, "Default")]:
+            subset = df[(df["TARGET"] == target) & (df["CREDIT_INCOME_RATIO"] < 15)]["CREDIT_INCOME_RATIO"]
+            fig.add_trace(go.Histogram(x=subset, name=label, marker_color=color, opacity=0.55, histnorm="probability density", nbinsx=40))
+        fig.update_layout(**{**PLOTLY_LAYOUT, "height": 380}, barmode="overlay",
+                           title={"text": "Credit-to-Income Ratio Distribution by Outcome", "font": {"size": 15, "color": TEXT}},
+                           xaxis=dict(title="Credit / Income Ratio", gridcolor="rgba(255,255,255,0.08)"),
+                           yaxis=dict(title="Density", gridcolor="rgba(255,255,255,0.08)"))
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.markdown('<div class="insight-line">Defaulting applicants skew toward higher credit-to-income '
+                     'ratios — borrowing more relative to what they earn.</div>', unsafe_allow_html=True)
+
+    # 7. Missing data overview
+    missing = (df.isnull().mean() * 100).sort_values(ascending=False).head(15)
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fig = styled_bar(missing.values[::-1], missing.index[::-1], "Top 15 Columns by Missing Data %",
+                          orientation="h", colors="#95A5A6", xlabel="% Missing", height=420)
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.markdown(f'<div class="insight-line">~50 housing-quality columns are 50-70% missing — '
+                     f'structural (tied to housing type), handled via the model\'s native missing-value '
+                     f'support rather than imputation.</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # PAGE: Risk Prediction
 # ---------------------------------------------------------------------------
 elif page == "Risk Prediction":
     st.title("Score a New Applicant")
-    st.caption("Fill in the key fields below — the remaining ~130 model features are filled with population "
+    st.caption("Fill in the key fields below — the remaining model features are filled with population "
                "medians/modes, matching how the model treats sparsely-available data in production.")
 
     numeric_defaults = df.drop(columns=["TARGET"]).median(numeric_only=True)
@@ -196,22 +386,14 @@ elif page == "Risk Prediction":
         applicant = defaults.to_dict()
         applicant.update({
             "SK_ID_CURR": 999999999,
-            "AMT_INCOME_TOTAL": income,
-            "AMT_CREDIT": credit,
-            "AMT_ANNUITY": annuity,
-            "DAYS_BIRTH": -int(age_years * 365.25),
-            "YEARS_BIRTH": age_years,
-            "DAYS_EMPLOYED": -int(employed_years * 365.25),
-            "YEARS_EMPLOYED": employed_years,
-            "NAME_INCOME_TYPE": income_type,
-            "NAME_EDUCATION_TYPE": education,
-            "CODE_GENDER": gender,
-            "bureau_overdue_loan_count": bureau_overdue,
-            "bureau_active_loan_count": bureau_active,
+            "AMT_INCOME_TOTAL": income, "AMT_CREDIT": credit, "AMT_ANNUITY": annuity,
+            "DAYS_BIRTH": -int(age_years * 365.25), "YEARS_BIRTH": age_years,
+            "DAYS_EMPLOYED": -int(employed_years * 365.25), "YEARS_EMPLOYED": employed_years,
+            "NAME_INCOME_TYPE": income_type, "NAME_EDUCATION_TYPE": education, "CODE_GENDER": gender,
+            "bureau_overdue_loan_count": bureau_overdue, "bureau_active_loan_count": bureau_active,
             "prev_refused_count": prev_refused,
             "EXT_SOURCE_1": ext_score, "EXT_SOURCE_2": ext_score, "EXT_SOURCE_3": ext_score,
-            "CREDIT_INCOME_RATIO": credit / max(income, 1),
-            "ANNUITY_INCOME_RATIO": annuity / max(income, 1),
+            "CREDIT_INCOME_RATIO": credit / max(income, 1), "ANNUITY_INCOME_RATIO": annuity / max(income, 1),
             "CREDIT_TERM_YEARS": credit / max(annuity, 1) / 12,
         })
         applicant_df = pd.DataFrame([applicant])
@@ -223,17 +405,15 @@ elif page == "Risk Prediction":
         st.session_state["last_prediction"] = (proba, band)
 
         st.markdown("---")
-        col1, col2 = st.columns([1, 2])
+        col1, col2 = st.columns([1, 1.4])
         with col1:
-            st.markdown(f'<div class="risk-card">'
-                        f'<div class="kpi-label">Default Probability</div>'
-                        f'<div class="kpi-number">{proba*100:.1f}%</div>'
-                        f'<br>{risk_badge_html(band)}</div>', unsafe_allow_html=True)
+            st.plotly_chart(risk_gauge(proba, band), use_container_width=True)
+            st.markdown(f'<div style="text-align:center;">{risk_badge_html(band)}</div>', unsafe_allow_html=True)
         with col2:
             st.write("**What this means:**")
             if band == "Low":
                 st.write("This applicant profile is in the Low risk band — default probability is below the "
-                         f"{10}% policy threshold. Standard approval workflow applies.")
+                         "10% policy threshold. Standard approval workflow applies.")
             elif band == "Medium":
                 st.write("This applicant profile is in the Medium risk band — consider additional verification "
                          "or adjusted terms (e.g. higher down payment, shorter term).")
@@ -258,21 +438,12 @@ elif page == "Explainability":
         X = prepare_features(applicant_df, meta)
         explanation = explain_prediction(model, X, top_n=8)
 
-        st.markdown(f'{risk_badge_html(band)} &nbsp; **Default probability: {proba*100:.1f}%**',
-                    unsafe_allow_html=True)
+        st.markdown(f'{risk_badge_html(band)} &nbsp; **Default probability: {proba*100:.1f}%**', unsafe_allow_html=True)
         st.write("")
         st.write("**Summary:** " + plain_english_summary(explanation))
         st.write("")
-        st.write("**Top contributing factors:**")
-
-        for f in explanation["top_features"]:
-            direction_icon = "🔺" if f["direction"] == "increased" else "🔻"
-            st.markdown(
-                f'<div class="risk-card" style="padding:0.9rem 1.2rem; margin-bottom:0.5rem;">'
-                f'{direction_icon} <b>{f["feature"]}</b> = {f["value"]} '
-                f'&nbsp;&nbsp;<span style="color:#8A97AB;">({f["direction"]} risk, impact {abs(f["shap_contribution"]):.3f})</span>'
-                f'</div>', unsafe_allow_html=True
-            )
+        st.write("**Feature contributions** (hover for exact values):")
+        st.plotly_chart(shap_diverging_bar(explanation), use_container_width=True)
 
         st.markdown("### Global Feature Importance")
         st.caption("How each feature affects predictions across the whole applicant population.")
@@ -288,9 +459,29 @@ elif page == "Business Rules":
 
     try:
         rules_df = pd.read_csv("documents/derived_business_rules.csv")
-        for _, r in rules_df.head(15).iterrows():
+
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            top10 = rules_df.head(10).iloc[::-1]
+            fig = go.Figure(go.Bar(
+                x=top10["lift"], y=top10["condition"], orientation="h",
+                marker_color=TEAL, text=[f"{v:.2f}x" for v in top10["lift"]], textposition="outside",
+                hovertemplate="<b>%{y}</b><br>Lift: %{x:.2f}x<extra></extra>",
+            ))
+            fig.update_layout(**{**PLOTLY_LAYOUT, "height": 420},
+                               title={"text": "Top 10 Rules by Risk Lift", "font": {"size": 15, "color": TEXT}},
+                               xaxis=dict(title="Lift vs baseline", gridcolor="rgba(255,255,255,0.08)"),
+                               yaxis=dict(gridcolor="rgba(255,255,255,0.0)", automargin=True))
+            st.plotly_chart(fig, use_container_width=True)
+        with c2:
+            st.markdown(f'<div class="insight-line">Highest-lift rule: applicants matching '
+                         f'<b>{rules_df.iloc[0]["condition"]}</b> default at '
+                         f'<b>{rules_df.iloc[0]["lift"]:.2f}x</b> the baseline rate.</div>', unsafe_allow_html=True)
+
+        st.markdown("### All Rules")
+        for i, (_, r) in enumerate(rules_df.head(15).iterrows()):
             st.markdown(
-                f'<div class="risk-card" style="padding:1rem 1.3rem;">'
+                f'<div class="rule-card" style="padding:1rem 1.3rem; animation-delay:{min(i*0.04, 0.4)}s;">'
                 f'If <b>{r["condition"]}</b><br>'
                 f'&rarr; default rate <b>{r["default_rate"]*100:.1f}%</b> vs '
                 f'{r["baseline_default_rate"]*100:.1f}% baseline '
@@ -327,13 +518,15 @@ elif page == "Talk to Data":
             with st.spinner("Generating query and fetching answer..."):
                 result = ask(question)
 
+            st.markdown(f'<div class="chat-bubble-user">🧑 {question}</div>', unsafe_allow_html=True)
+
             if result["sql"]:
                 with st.expander("SQL query used"):
                     st.code(result["sql"], language="sql")
 
             if result["success"]:
-                st.success(result["answer"])
+                st.markdown(f'<div class="chat-bubble-answer">🤖 {result["answer"]}</div>', unsafe_allow_html=True)
                 if result["data"] is not None and len(result["data"]) > 0:
                     st.dataframe(result["data"], use_container_width=True)
             else:
-                st.warning(result["answer"])
+                st.markdown(f'<div class="chat-bubble-answer">🤖 {result["answer"]}</div>', unsafe_allow_html=True)

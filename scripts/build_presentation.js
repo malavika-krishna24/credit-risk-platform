@@ -228,9 +228,9 @@ function pageNum(s, n) {
 
   const notes = [
     "TreeExplainer — exact SHAP values for gradient-boosted trees, not an approximation",
+    "Interactive diverging bar chart (Plotly) — hover any feature for its exact value and impact",
     "Per-applicant: top features, direction, and a plain-English summary",
     "Global: beeswarm plot across a 2,000-applicant sample",
-    "Example: correctly flagged 22 active bureau loans + 70.7% refusal rate on a genuinely-defaulted applicant (p=0.955)",
   ];
   s.addText(notes.map((t, i) => ({ text: t, options: { bullet: true, breakLine: i < notes.length - 1, color: MUTED, fontSize: 12.5, paraSpaceAfter: 10 } })), {
     x: 0.5, y: 1.9, w: 3.2, h: 5, fontFace: FONT_BODY, isTextBox: true, valign: "top",
@@ -249,8 +249,8 @@ function pageNum(s, n) {
 
   const notes = [
     "Bins top-25 model features and surfaces any bin where default rate is materially above baseline",
+    "Interactive lift chart (Plotly) plus full rule cards below, each with hover-lift animation",
     "Every rule backed by measured lift + support (n), not just model-internal importance",
-    "Auditable by a policy team independent of trusting the ML model",
     "Example: Low-skill Laborers default at 2.12x baseline (n=2,093)",
   ];
   s.addText(notes.map((t, i) => ({ text: t, options: { bullet: true, breakLine: i < notes.length - 1, color: MUTED, fontSize: 12.5, paraSpaceAfter: 10 } })), {
@@ -293,7 +293,7 @@ function pageNum(s, n) {
   s.addText("Overview (KPIs from real data)                                              Risk Prediction (live scoring + risk band)", {
     x: 0.5, y: 5.75, w: 12.3, h: 0.4, fontSize: 11.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true,
   });
-  s.addText("Streamlit \u2022 dark navy/teal design system \u2022 IBM Plex Sans \u2022 responsive KPI cards", {
+  s.addText("Streamlit \u2022 dark navy/teal design system \u2022 IBM Plex Sans \u2022 interactive Plotly charts \u2022 hover animations throughout", {
     x: 0.5, y: 6.5, w: 12, h: 0.4, fontSize: 12.5, italic: true, color: TEAL, fontFace: FONT_BODY, isTextBox: true,
   });
   pageNum(s, 10);
