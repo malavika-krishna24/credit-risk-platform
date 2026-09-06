@@ -1,0 +1,26 @@
+# Data & DB
+data/*.csv
+data/*.duckdb
+data/*.parquet
+!data/.gitkeep
+
+# Model artifacts — the trained model IS committed (small, ~3MB, and is an
+# explicit deliverable per the assignment: "saved model artifacts"). Other
+# pkl/joblib files (e.g. future experiment checkpoints) stay ignored.
+models/*.pkl
+!models/lgbm_model.pkl
+models/*.joblib
+!models/.gitkeep
+
+# Env
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
