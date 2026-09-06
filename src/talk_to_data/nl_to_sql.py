@@ -114,4 +114,5 @@ SAMPLE_QUESTIONS = [
     "Show me the top 10 organization types by average credit amount.",
     "How many applicants were previously refused a loan by this lender?",
     "What is the average credit amount for female vs male applicants?",
+    "What's the average credit card utilization for applicants who defaulted?",
 ]

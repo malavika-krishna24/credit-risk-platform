@@ -31,8 +31,10 @@ RAW_FILES = {
     "app_train": "application_train.csv",
     "app_test": "application_test.csv",
     "bureau": "bureau.csv",
+    "bureau_balance": "bureau_balance.csv",
     "previous_application": "previous_application.csv",
     "pos_cash": "POS_CASH_balance.csv",
+    "credit_card_balance": "credit_card_balance.csv",
 }
 
 

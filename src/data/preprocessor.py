@@ -110,25 +110,75 @@ def aggregate_pos_cash(con: duckdb.DuckDBPyConnection, table: str = "pos_cash_ba
     """).fetchdf()
 
 
+def aggregate_bureau_balance(con: duckdb.DuckDBPyConnection, table: str = "bureau_balance") -> pd.DataFrame:
+    """One row per SK_ID_CURR summarising monthly bureau credit-line status
+    history. STATUS is a DPD bucket ('0'=no overdue, '1'-'5'=increasing overdue
+    severity, 'C'=closed, 'X'=unknown) — joined through bureau (SK_ID_BUREAU)
+    since bureau_balance itself has no SK_ID_CURR. Aggregated in SQL since this
+    table is large (27M+ rows in the full dataset)."""
+    return con.execute(f"""
+        SELECT
+            b.SK_ID_CURR,
+            COUNT(*)                                                              AS bb_months_count,
+            SUM(CASE WHEN bb.STATUS IN ('1','2','3','4','5') THEN 1 ELSE 0 END)    AS bb_months_overdue,
+            SUM(CASE WHEN bb.STATUS = 'C' THEN 1 ELSE 0 END)                       AS bb_months_closed,
+            MAX(CASE WHEN bb.STATUS IN ('1','2','3','4','5')
+                     THEN CAST(bb.STATUS AS INTEGER) ELSE 0 END)                   AS bb_max_dpd_bucket,
+            SUM(CASE WHEN bb.STATUS IN ('1','2','3','4','5') THEN 1 ELSE 0 END)::DOUBLE
+                / NULLIF(COUNT(*), 0)                                              AS bb_overdue_rate
+        FROM {table} bb
+        JOIN bureau b ON bb.SK_ID_BUREAU = b.SK_ID_BUREAU
+        GROUP BY b.SK_ID_CURR
+    """).fetchdf()
+
+
+def aggregate_credit_card_balance(con: duckdb.DuckDBPyConnection, table: str = "credit_card_balance") -> pd.DataFrame:
+    """One row per SK_ID_CURR summarising monthly credit-card balance and
+    utilization history. Credit utilization (balance / credit limit) is a
+    classic, strong risk signal in consumer credit scoring — high sustained
+    utilization predicts default independently of raw balance size."""
+    return con.execute(f"""
+        SELECT
+            SK_ID_CURR,
+            COUNT(*)                                                     AS cc_months_count,
+            AVG(AMT_BALANCE)                                             AS cc_avg_balance,
+            AVG(AMT_BALANCE / NULLIF(AMT_CREDIT_LIMIT_ACTUAL, 0))         AS cc_avg_utilization,
+            MAX(AMT_BALANCE / NULLIF(AMT_CREDIT_LIMIT_ACTUAL, 0))         AS cc_max_utilization,
+            AVG(SK_DPD)                                                  AS cc_avg_dpd,
+            MAX(SK_DPD)                                                  AS cc_max_dpd,
+            SUM(CASE WHEN SK_DPD > 0 THEN 1 ELSE 0 END)                  AS cc_months_with_dpd,
+            SUM(CASE WHEN SK_DPD > 0 THEN 1 ELSE 0 END)::DOUBLE
+                / NULLIF(COUNT(*), 0)                                    AS cc_dpd_rate
+        FROM {table}
+        GROUP BY SK_ID_CURR
+    """).fetchdf()
+
+
 def build_feature_table(
     app: pd.DataFrame,
     con: duckdb.DuckDBPyConnection,
     use_bureau: bool = True,
+    use_bureau_balance: bool = True,
     use_previous_application: bool = True,
     use_pos_cash: bool = True,
+    use_credit_card_balance: bool = True,
 ) -> pd.DataFrame:
     """Full pipeline: clean the main table, aggregate the auxiliary tables in
     DuckDB, and left-join everything on SK_ID_CURR in pandas (the aggregated
     tables are small — one row per applicant — so this final join is cheap even
     though the source tables are millions of rows). Applicants with no bureau/
-    prior-loan/POS-cash history get NaN for those features (handled downstream
-    by the model's native missing-value support)."""
+    prior-loan/POS-cash/credit-card history get NaN for those features (handled
+    downstream by the model's native missing-value support)."""
     logger.info("Cleaning application table ...")
     df = clean_applications(app)
 
     if use_bureau:
         logger.info("Aggregating bureau (SQL) ...")
         df = df.merge(aggregate_bureau(con), on="SK_ID_CURR", how="left")
+
+    if use_bureau_balance:
+        logger.info("Aggregating bureau_balance (SQL) ...")
+        df = df.merge(aggregate_bureau_balance(con), on="SK_ID_CURR", how="left")
 
     if use_previous_application:
         logger.info("Aggregating previous_applications (SQL) ...")
@@ -137,6 +187,10 @@ def build_feature_table(
     if use_pos_cash:
         logger.info("Aggregating pos_cash_balance (SQL) ...")
         df = df.merge(aggregate_pos_cash(con), on="SK_ID_CURR", how="left")
+
+    if use_credit_card_balance:
+        logger.info("Aggregating credit_card_balance (SQL) ...")
+        df = df.merge(aggregate_credit_card_balance(con), on="SK_ID_CURR", how="left")
 
     logger.info(f"Final feature table shape: {df.shape}")
     return df

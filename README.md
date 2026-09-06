@@ -28,8 +28,9 @@ Built for the NeoStats AI Engineer Internship candidate assignment.
                                            ▼
                   ┌─────────────────────────────────────────────┐
                   │        DuckDB (data/credit_risk.duckdb)        │
-                  │  applications │ bureau │ previous_applications  │
-                  │            │ pos_cash_balance │                 │
+                  │  applications │ bureau │ bureau_balance         │
+                  │  previous_applications │ pos_cash_balance       │
+                  │            │ credit_card_balance │              │
                   └─────────────────────────────────────────────┘
                                            ▲
                                            │
@@ -40,7 +41,7 @@ Built for the NeoStats AI Engineer Internship candidate assignment.
                   └─────────────────────────────────────────────┘
 ```
 
-**Data flow:** raw CSVs are loaded into DuckDB (`src/data/loader.py`), which serves two consumers: (1) the feature-engineering pipeline (`src/data/preprocessor.py`), which aggregates `bureau`, `previous_application`, and `POS_CASH_balance` in SQL and joins them onto the main application table for model training; and (2) the talk-to-data chatbot, which queries the same DuckDB tables directly through a validated SQL layer — so the chatbot is always answering from the same ground truth as the model.
+**Data flow:** raw CSVs are loaded into DuckDB (`src/data/loader.py`), which serves two consumers: (1) the feature-engineering pipeline (`src/data/preprocessor.py`), which aggregates `bureau`, `bureau_balance`, `previous_application`, `POS_CASH_balance`, and `credit_card_balance` in SQL and joins them onto the main application table for model training; and (2) the talk-to-data chatbot, which queries the same DuckDB tables directly through a validated SQL layer — so the chatbot is always answering from the same ground truth as the model.
 
 ---
 
@@ -114,10 +115,12 @@ Download from [Kaggle: Home Credit Default Risk](https://www.kaggle.com/competit
 - `application_train.csv`
 - `application_test.csv`
 - `bureau.csv`
+- `bureau_balance.csv`
 - `previous_application.csv`
 - `POS_CASH_balance.csv`
+- `credit_card_balance.csv`
 
-**Note on scope:** `bureau_balance.csv`, `credit_card_balance.csv`, `installments_payments.csv`, and `sample_submission.csv` from the full Kaggle download are intentionally not used. The five tables above already cover application data, external bureau history, prior-loan history, and monthly repayment/DPD behavior — the four categories of signal that matter most for default prediction. Adding the remaining tables (mostly `bureau_balance` and `credit_card_balance`) is a natural extension; see "Known Limitations" below.
+**Note on scope:** `installments_payments.csv` and `sample_submission.csv` from the full Kaggle download are intentionally not used — `sample_submission.csv` is just a submission-format template with no real data, and `installments_payments.csv`'s repayment-timing signal is already substantially covered by `POS_CASH_balance.csv`'s monthly DPD tracking and `credit_card_balance.csv`'s own DPD/utilization history.
 
 ---
 
@@ -215,7 +218,6 @@ All of the above was tested against real adversarial inputs (`DROP TABLE`, chain
 
 ## 10. Known Limitations & Possible Improvements
 
-- **Tables not yet joined**: `bureau_balance.csv` (monthly bureau credit-line snapshots) and `credit_card_balance.csv` (monthly card utilization) were left out of this submission's scope to keep the pipeline manageable within the assignment timeline — both would add further repayment-behavior signal on top of what `bureau` and `pos_cash_balance` already provide.
 - **Risk-band thresholds** (Low <10%, Medium 10-35%, High >35%) are configured defaults, not derived from a cost-sensitive optimization against a specific bank's approval/loss economics — in production these should be tuned against real business costs of false positives vs false negatives.
 - **The Risk Prediction UI form** exposes ~12 key fields and fills the rest from population medians/modes, rather than all 150+ model features — a deliberate UX tradeoff for a demo interface; a production underwriting system would pull the full applicant record automatically rather than via manual form entry.
 - **No model monitoring/retraining pipeline** — a production deployment would need drift detection and a scheduled retraining job, out of scope for this assignment.
@@ -250,8 +252,8 @@ pip install -r requirements.txt
 
 # 3. Add your dataset
 #    Download from Kaggle (see section 4) and place these 5 files in data/:
-#    application_train.csv, application_test.csv, bureau.csv,
-#    previous_application.csv, POS_CASH_balance.csv
+#    application_train.csv, application_test.csv, bureau.csv, bureau_balance.csv,
+#    previous_application.csv, POS_CASH_balance.csv, credit_card_balance.csv
 
 # 4. Add your Groq API key
 cp .env.example .env

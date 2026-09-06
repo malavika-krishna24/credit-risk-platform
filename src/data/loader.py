@@ -52,8 +52,10 @@ def build_duckdb(frames: dict[str, pd.DataFrame] | None = None, db_path: str = D
     table_map = {
         "app_train": "applications",
         "bureau": "bureau",
+        "bureau_balance": "bureau_balance",
         "previous_application": "previous_applications",
         "pos_cash": "pos_cash_balance",
+        "credit_card_balance": "credit_card_balance",
     }
 
     for key, table_name in table_map.items():

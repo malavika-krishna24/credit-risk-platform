@@ -55,6 +55,20 @@ TABLE: pos_cash_balance  (one row per applicant per month of a POS/cash loan)
   SK_DPD (int)                   - days past due that month
   SK_DPD_DEF (int)
   NAME_CONTRACT_STATUS (str)
+
+TABLE: bureau_balance  (one row per external bureau credit line per month; NO SK_ID_CURR — join through bureau on SK_ID_BUREAU)
+  SK_ID_BUREAU (int)
+  MONTHS_BALANCE (int)
+  STATUS (str)                   - '0' no overdue, '1'-'5' increasing overdue severity, 'C' closed, 'X' unknown
+
+TABLE: credit_card_balance  (one row per applicant per month of a credit card)
+  SK_ID_PREV (int)
+  SK_ID_CURR (int)
+  MONTHS_BALANCE (int)
+  AMT_BALANCE (float)
+  AMT_CREDIT_LIMIT_ACTUAL (float)
+  SK_DPD (int)
+  NAME_CONTRACT_STATUS (str)
 """
 
 SQL_GENERATION_SYSTEM_PROMPT = f"""You are a precise SQL generation assistant for a credit risk analytics platform.
@@ -85,6 +99,12 @@ FROM applications a
 JOIN (SELECT SK_ID_CURR, COUNT(*) AS overdue_count FROM bureau WHERE CREDIT_DAY_OVERDUE > 0 GROUP BY SK_ID_CURR) b
 ON a.SK_ID_CURR = b.SK_ID_CURR
 WHERE b.overdue_count > 2;
+
+Q: What's the average credit card utilization for applicants who defaulted?
+SQL: SELECT AVG(cc.AMT_BALANCE / NULLIF(cc.AMT_CREDIT_LIMIT_ACTUAL, 0)) AS avg_utilization
+FROM credit_card_balance cc
+JOIN applications a ON cc.SK_ID_CURR = a.SK_ID_CURR
+WHERE a.TARGET = 1;
 
 Q: Show me 10 applicants with the highest income.
 SQL: SELECT SK_ID_CURR, AMT_INCOME_TOTAL FROM applications ORDER BY AMT_INCOME_TOTAL DESC LIMIT 10;

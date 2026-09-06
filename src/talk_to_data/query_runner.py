@@ -25,7 +25,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-ALLOWED_TABLES = {"applications", "bureau", "previous_applications", "pos_cash_balance"}
+ALLOWED_TABLES = {"applications", "bureau", "bureau_balance", "previous_applications", "pos_cash_balance", "credit_card_balance"}
 
 # Keywords that should never appear in a generated query. Checked as whole words
 # to avoid false positives on legitimate column names.
