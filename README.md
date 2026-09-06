@@ -190,7 +190,7 @@ Sample output (from `documents/derived_business_rules.csv`):
 
 ## 9. Talk-to-Data: Prompt Engineering & Hallucination Control
 
-**LLM provider:** [Groq](https://console.groq.com) (Llama 3.3 70B) — chosen over OpenAI/Anthropic because it has a genuinely free tier (no card required), which matters since an evaluator running this repo shouldn't need to spend their own money, and its inference speed keeps the chatbot feeling responsive.
+**LLM provider:** [Groq](https://console.groq.com) (GPT-OSS 120B) — chosen over OpenAI/Anthropic because it has a genuinely free tier (no card required), which matters since an evaluator running this repo shouldn't need to spend their own money, and its inference speed keeps the chatbot feeling responsive.
 
 **Two-stage prompting** (`src/talk_to_data/prompt_templates.py`):
 1. **SQL generation** — the LLM is given an explicit, exhaustive schema description (only 4 real tables, exact column names/types) and few-shot examples, and instructed to output *only* SQL, `LIMIT`-bounded, or a `NO_QUERY:` refusal if the question is unanswerable from the schema. Temperature 0.1 for consistency.
@@ -233,7 +233,7 @@ All of the above was tested against real adversarial inputs (`DROP TABLE`, chain
 | ML model | LightGBM | Native categorical + missing-value handling, fast on this scale |
 | Explainability | SHAP (TreeExplainer) | Exact (not approximate) for tree models |
 | Database | DuckDB | Fast in-process SQL on CSV-scale data, doubles as the chatbot's query target |
-| LLM | Groq (Llama 3.3 70B) | Free tier, fast inference, no cost burden on the evaluator |
+| LLM | Groq (GPT-OSS 120B) | Free tier, fast inference, no cost burden on the evaluator |
 | UI | Streamlit | Fast to build a clean multi-section app; matches "lightweight platform" framing |
 | Deployment | Docker + Docker Compose | Single-command reproducible run, as required |
 

@@ -17,7 +17,7 @@ DB_PATH = os.getenv("DB_PATH", str(DATA_DIR / "credit_risk.duckdb"))
 
 # --- LLM ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # --- Risk bands ---
 RISK_LOW_THRESHOLD = float(os.getenv("RISK_LOW_THRESHOLD", 0.10))
