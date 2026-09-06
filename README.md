@@ -78,14 +78,7 @@ cp .env.example .env
 #    (run once, locally, before first docker-compose up — see section 5)
 pip install -r requirements.txt
 python -m src.data.loader
-python -c "
-import duckdb, pandas as pd
-from src.data.preprocessor import build_feature_table
-con = duckdb.connect('data/credit_risk.duckdb')
-app_train = con.execute('SELECT * FROM applications').fetchdf()
-features = build_feature_table(app_train, con)
-features.to_parquet('data/features_train.parquet')
-"
+python scripts/build_features.py
 python -m src.ml.train
 python -m src.ml.evaluate
 python -m src.ml.rules
@@ -266,14 +259,7 @@ cp .env.example .env
 
 # 5. Build the database, features, model, and derived artifacts (run once)
 python -m src.data.loader
-python -c "
-import duckdb, pandas as pd
-from src.data.preprocessor import build_feature_table
-con = duckdb.connect('data/credit_risk.duckdb')
-app_train = con.execute('SELECT * FROM applications').fetchdf()
-features = build_feature_table(app_train, con)
-features.to_parquet('data/features_train.parquet')
-"
+python scripts/build_features.py
 python -m src.ml.train
 python -m src.ml.evaluate
 python -m src.ml.rules
