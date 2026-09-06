@@ -19,6 +19,7 @@ import streamlit as st
 from src.ml.predict import predict_risk, prepare_features
 from src.ml.explain import explain_prediction, plain_english_summary
 from src.utils.config import MODELS_DIR, risk_band
+from src.utils.helpers import format_percent
 
 st.set_page_config(page_title="Credit Risk Intelligence Platform", page_icon="◆", layout="wide")
 
@@ -201,7 +202,7 @@ st.sidebar.markdown("## ◆ Credit Risk Platform")
 st.sidebar.caption("AI-powered credit risk intelligence — NeoStats assignment")
 page = st.sidebar.radio(
     "Section",
-    ["Overview", "Data Exploration (EDA)", "Risk Prediction", "Explainability", "Business Rules", "Talk to Data"],
+    ["🏠 Overview", "📊 Data Exploration (EDA)", "🎯 Risk Prediction", "🔍 Explainability", "📋 Business Rules", "💬 Talk to Data"],
     label_visibility="collapsed",
 )
 
@@ -211,7 +212,7 @@ model, meta = load_model_and_meta()
 # ---------------------------------------------------------------------------
 # PAGE: Overview
 # ---------------------------------------------------------------------------
-if page == "Overview":
+if page == "🏠 Overview":
     st.title("Credit Risk Intelligence Platform")
     st.write(
         "A lightweight, explainable platform for scoring loan-default risk, "
@@ -223,7 +224,7 @@ if page == "Overview":
     cols = st.columns(4)
     kpis = [
         ("Applicants", f"{len(df):,}"),
-        ("Default Rate", f"{df['TARGET'].mean()*100:.1f}%"),
+        ("Default Rate", format_percent(df['TARGET'].mean())),
         ("Model ROC-AUC", f"{meta['metrics']['roc_auc']:.3f}"),
         ("Features Used", f"{len(meta['feature_names'])}"),
     ]
@@ -248,7 +249,7 @@ if page == "Overview":
 # ---------------------------------------------------------------------------
 # PAGE: EDA — all charts are interactive Plotly, computed live from the data
 # ---------------------------------------------------------------------------
-elif page == "Data Exploration (EDA)":
+elif page == "📊 Data Exploration (EDA)":
     st.title("Data Exploration & Insights")
     st.caption("Home Credit application data joined with bureau, previous-application, POS/cash, and credit-card history. Hover any chart to explore the exact numbers.")
 
@@ -352,7 +353,7 @@ elif page == "Data Exploration (EDA)":
 # ---------------------------------------------------------------------------
 # PAGE: Risk Prediction
 # ---------------------------------------------------------------------------
-elif page == "Risk Prediction":
+elif page == "🎯 Risk Prediction":
     st.title("Score a New Applicant")
     st.caption("Fill in the key fields below — the remaining model features are filled with population "
                "medians/modes, matching how the model treats sparsely-available data in production.")
@@ -425,7 +426,7 @@ elif page == "Risk Prediction":
 # ---------------------------------------------------------------------------
 # PAGE: Explainability
 # ---------------------------------------------------------------------------
-elif page == "Explainability":
+elif page == "🔍 Explainability":
     st.title("Explainable AI")
     st.caption("SHAP-based explanation of individual predictions — auditable, feature-level reasoning.")
 
@@ -452,7 +453,7 @@ elif page == "Explainability":
 # ---------------------------------------------------------------------------
 # PAGE: Business Rules
 # ---------------------------------------------------------------------------
-elif page == "Business Rules":
+elif page == "📋 Business Rules":
     st.title("Derived Business Rules")
     st.caption("Plain-English underwriting rules mined from the model's learned patterns, each backed by "
                "measured lift on real validation data — not just model-internal importance.")
@@ -495,7 +496,7 @@ elif page == "Business Rules":
 # ---------------------------------------------------------------------------
 # PAGE: Talk to Data
 # ---------------------------------------------------------------------------
-elif page == "Talk to Data":
+elif page == "💬 Talk to Data":
     st.title("Talk to Your Data")
     st.caption("Ask questions in plain English — answered by an LLM-generated, validated SQL query "
                "against the real applicant database.")
@@ -515,8 +516,16 @@ elif page == "Talk to Data":
         question = st.text_input("Your question", value=st.session_state.get("chat_question", ""))
 
         if st.button("Ask", type="primary") and question:
-            with st.spinner("Generating query and fetching answer..."):
-                result = ask(question)
+            status_placeholder = st.empty()
+            steps = ["🧠 Understanding your question...", "🔎 Generating SQL query...",
+                     "🛡️ Validating against safety rules...", "⚡ Querying the database...",
+                     "✍️ Writing a plain-English answer..."]
+            import time as _time
+            for step in steps[:2]:
+                status_placeholder.markdown(f'<div class="insight-line">{step}</div>', unsafe_allow_html=True)
+                _time.sleep(0.35)
+            result = ask(question)
+            status_placeholder.empty()
 
             st.markdown(f'<div class="chat-bubble-user">🧑 {question}</div>', unsafe_allow_html=True)
 

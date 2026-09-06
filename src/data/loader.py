@@ -11,6 +11,7 @@ import pandas as pd
 from pathlib import Path
 
 from src.utils.config import DATA_DIR, DB_PATH, RAW_FILES
+from src.utils.docker_utils import missing_files_message
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -19,23 +20,17 @@ logger = get_logger(__name__)
 def load_raw_csvs() -> dict[str, pd.DataFrame]:
     """Read all required raw CSVs from data/ into memory. Fails fast with a clear
     message if a file is missing, since the whole pipeline depends on this data."""
+    error_message = missing_files_message()
+    if error_message:
+        raise FileNotFoundError(error_message)
+
     frames = {}
-    missing = []
     for key, filename in RAW_FILES.items():
         path = DATA_DIR / filename
-        if not path.exists():
-            missing.append(filename)
-            continue
         logger.info(f"Loading {filename} ...")
         frames[key] = pd.read_csv(path)
         logger.info(f"  -> {filename}: {frames[key].shape[0]:,} rows, {frames[key].shape[1]} cols")
 
-    if missing:
-        raise FileNotFoundError(
-            f"Missing required file(s) in {DATA_DIR}: {missing}. "
-            f"Download them from the Kaggle Home Credit Default Risk competition "
-            f"and place them in the data/ folder before running this pipeline."
-        )
     return frames
 
 
