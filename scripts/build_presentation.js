@@ -61,8 +61,11 @@ function pageNum(s, n) {
     fontSize: 16, color: MUTED, fontFace: FONT_BODY, isTextBox: true,
   });
   s.addShape(pres.ShapeType.rect, { x: 0.9, y: 4.35, w: 0.55, h: 0.06, fill: { color: TEAL }, line: { type: "none" } });
-  s.addText("NeoStats AI Engineer Internship — Candidate Assignment", {
-    x: 0.9, y: 6.7, w: 8, h: 0.4, fontSize: 12, color: MUTED, fontFace: FONT_BODY, isTextBox: true,
+  s.addText("Built by Malavika Krishna, for the NeoStats AI Engineer Internship", {
+    x: 0.9, y: 6.55, w: 9, h: 0.4, fontSize: 12.5, color: TEXT, fontFace: FONT_BODY, isTextBox: true, bold: true,
+  });
+  s.addText("Candidate Assignment — every number in this deck comes from a real run against the actual dataset, not a mockup", {
+    x: 0.9, y: 6.9, w: 10.5, h: 0.4, fontSize: 11, color: MUTED, fontFace: FONT_BODY, isTextBox: true, italic: true,
   });
 }
 
@@ -71,8 +74,13 @@ function pageNum(s, n) {
 // =========================================================
 {
   const s = bgSlide();
-  kicker(s, "OBJECTIVE");
-  title(s, "Building a bank-ready credit risk platform");
+  kicker(s, "MY APPROACH");
+  title(s, "How I thought about this problem");
+
+  s.addText(
+    "Most take-home submissions on this dataset stop at a single CSV and a model score. I wanted to build something a real credit team could actually use \u2014 so I optimized for four things:",
+    { x: 0.6, y: 1.55, w: 12.1, h: 0.5, fontSize: 13, color: MUTED, fontFace: FONT_BODY, isTextBox: true, italic: true }
+  );
 
   const items = [
     ["Multi-table data", "Joined application, bureau, prior-loan, and monthly repayment history — not just a single table"],
@@ -80,15 +88,15 @@ function pageNum(s, n) {
     ["Talk to the data", "A guardrailed NL-to-SQL chatbot for non-technical stakeholders to explore the data directly"],
     ["Ship it", "Fully Dockerized, single-command deployment"],
   ];
-  let y = 1.75;
+  let y = 2.25;
   items.forEach(([h, d]) => {
     s.addShape(pres.ShapeType.roundRect, {
-      x: 0.6, y, w: 12.1, h: 1.05, rectRadius: 0.08,
+      x: 0.6, y, w: 12.1, h: 0.95, rectRadius: 0.08,
       fill: { color: CARD }, line: { color: CARD_BORDER, width: 1 },
     });
-    s.addText(h, { x: 0.95, y: y + 0.12, w: 4, h: 0.4, fontSize: 15, bold: true, color: TEAL, fontFace: FONT_HEAD, isTextBox: true });
-    s.addText(d, { x: 0.95, y: y + 0.5, w: 11.4, h: 0.45, fontSize: 12.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true });
-    y += 1.22;
+    s.addText(h, { x: 0.95, y: y + 0.1, w: 4, h: 0.4, fontSize: 15, bold: true, color: TEAL, fontFace: FONT_HEAD, isTextBox: true });
+    s.addText(d, { x: 0.95, y: y + 0.46, w: 11.4, h: 0.42, fontSize: 12.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true });
+    y += 1.1;
   });
   pageNum(s, 2);
 }
@@ -336,8 +344,13 @@ function pageNum(s, n) {
 // =========================================================
 {
   const s = bgSlide();
-  kicker(s, "HONEST SCOPE");
-  title(s, "Known limitations & what's next");
+  kicker(s, "BEING HONEST WITH YOU");
+  title(s, "What I'd do next, if I kept going");
+
+  s.addText(
+    "I'd rather show you exactly where the edges are than pretend this is finished. Here's what I'd tackle first with more time:",
+    { x: 0.6, y: 1.5, w: 12.1, h: 0.45, fontSize: 12.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true, italic: true }
+  );
 
   const items = [
     ["installments_payments.csv not joined", "Repayment-timing signal is already substantially covered by POS_CASH_balance and credit_card_balance's own DPD tracking"],
@@ -345,12 +358,12 @@ function pageNum(s, n) {
     ["Prediction form uses ~12 key fields", "Remaining ~153 features filled from population medians/modes \u2014 a deliberate UX tradeoff for a demo interface"],
     ["No monitoring/retraining pipeline", "A production deployment needs drift detection and scheduled retraining \u2014 out of scope here"],
   ];
-  let y = 1.7;
+  let y = 2.15;
   items.forEach(([h, d]) => {
-    s.addShape(pres.ShapeType.roundRect, { x: 0.6, y, w: 12.1, h: 1.15, rectRadius: 0.08, fill: { color: CARD }, line: { color: CARD_BORDER, width: 1 } });
-    s.addText(h, { x: 0.95, y: y + 0.12, w: 11.4, h: 0.4, fontSize: 14, bold: true, color: AMBER, fontFace: FONT_HEAD, isTextBox: true });
-    s.addText(d, { x: 0.95, y: y + 0.53, w: 11.4, h: 0.55, fontSize: 12, color: MUTED, fontFace: FONT_BODY, isTextBox: true });
-    y += 1.32;
+    s.addShape(pres.ShapeType.roundRect, { x: 0.6, y, w: 12.1, h: 1.08, rectRadius: 0.08, fill: { color: CARD }, line: { color: CARD_BORDER, width: 1 } });
+    s.addText(h, { x: 0.95, y: y + 0.1, w: 11.4, h: 0.4, fontSize: 14, bold: true, color: AMBER, fontFace: FONT_HEAD, isTextBox: true });
+    s.addText(d, { x: 0.95, y: y + 0.48, w: 11.4, h: 0.5, fontSize: 12, color: MUTED, fontFace: FONT_BODY, isTextBox: true });
+    y += 1.22;
   });
   pageNum(s, 12);
 }
@@ -360,13 +373,18 @@ function pageNum(s, n) {
 // =========================================================
 {
   const s = bgSlide();
-  s.addText("Thank you", {
-    x: 0.9, y: 2.9, w: 10, h: 1, fontSize: 40, bold: true, color: TEXT, fontFace: FONT_HEAD, isTextBox: true,
+  s.addText("Thank you for reading this far", {
+    x: 0.9, y: 2.3, w: 11, h: 1, fontSize: 36, bold: true, color: TEXT, fontFace: FONT_HEAD, isTextBox: true,
   });
-  s.addText("Credit Risk Intelligence Platform \u2014 built end-to-end with real data, tested at every stage", {
-    x: 0.9, y: 3.8, w: 10, h: 0.5, fontSize: 15, color: MUTED, fontFace: FONT_BODY, isTextBox: true,
+  s.addText(
+    "I genuinely enjoyed building this \u2014 the multi-table joins, the SQL guardrails, the SHAP explanations that turned out to match intuition. "
+    + "If you dig into the repo and something looks off or you'd want it done differently, I'd love to talk through the reasoning.",
+    { x: 0.9, y: 3.35, w: 10.8, h: 1.1, fontSize: 14.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true, lineSpacingMultiple: 1.3 }
+  );
+  s.addShape(pres.ShapeType.rect, { x: 0.9, y: 4.7, w: 0.55, h: 0.06, fill: { color: TEAL }, line: { type: "none" } });
+  s.addText("Malavika Krishna", {
+    x: 0.9, y: 6.35, w: 8, h: 0.4, fontSize: 13, color: TEXT, fontFace: FONT_HEAD, isTextBox: true, bold: true,
   });
-  s.addShape(pres.ShapeType.rect, { x: 0.9, y: 4.4, w: 0.55, h: 0.06, fill: { color: TEAL }, line: { type: "none" } });
   s.addText("github.com/malavika-krishna24/credit-risk-platform", {
     x: 0.9, y: 6.7, w: 8, h: 0.4, fontSize: 12, color: TEAL, fontFace: "Consolas", isTextBox: true,
   });
