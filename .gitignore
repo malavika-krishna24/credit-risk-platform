@@ -3,6 +3,12 @@ data/*.csv
 data/*.duckdb
 data/*.parquet
 !data/.gitkeep
+# Exceptions: these two are deliberately committed for the public cloud
+# deployment (Streamlit Community Cloud has no persistent volume, so the
+# app needs its data baked into the repo). Both are well under GitHub's
+# 100MB limit — see scripts/build_demo_db.py for how the demo DB is built.
+!data/features_train.parquet
+!data/credit_risk_demo.duckdb
 
 # Model artifacts — the trained model IS committed (small, ~3MB, and is an
 # explicit deliverable per the assignment: "saved model artifacts"). Other
@@ -14,6 +20,7 @@ models/*.joblib
 
 # Env
 .env
+.streamlit/secrets.toml
 venv/
 .venv/
 __pycache__/

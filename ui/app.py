@@ -574,8 +574,15 @@ elif page == "💬 Talk to Data":
                "against the real applicant database.")
 
     from src.talk_to_data.nl_to_sql import ask, SAMPLE_QUESTIONS
-    from src.utils.config import GROQ_API_KEY
+    from src.utils.config import GROQ_API_KEY, DB_PATH
     import time as _time
+
+    if "demo" in DB_PATH.lower():
+        st.info("This public demo queries a real, randomly-sampled subset of applicants "
+                 "(~30,000 of 307,511) for deployment size reasons — every row is genuine data, "
+                 "just not the full dataset. The model, EDA, and business rules elsewhere in this "
+                 "app are trained/computed on the complete 307,511-applicant dataset. "
+                 "See the README for the full local/Docker setup with the complete database.")
 
     if not GROQ_API_KEY:
         st.error("GROQ_API_KEY is not set. Add it to your .env file (free key at console.groq.com) to use this feature.")
