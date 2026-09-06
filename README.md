@@ -240,3 +240,67 @@ All of the above was tested against real adversarial inputs (`DROP TABLE`, chain
 | LLM | Groq (Llama 3.3 70B) | Free tier, fast inference, no cost burden on the evaluator |
 | UI | Streamlit | Fast to build a clean multi-section app; matches "lightweight platform" framing |
 | Deployment | Docker + Docker Compose | Single-command reproducible run, as required |
+
+---
+
+## 12. Local Development Workflow
+
+### Full local setup (Python + Node)
+
+```bash
+# 1. Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# 2. Install Python dependencies
+pip install -r requirements.txt
+
+# 3. Add your dataset
+#    Download from Kaggle (see section 4) and place these 5 files in data/:
+#    application_train.csv, application_test.csv, bureau.csv,
+#    previous_application.csv, POS_CASH_balance.csv
+
+# 4. Add your Groq API key
+cp .env.example .env
+# edit .env, set GROQ_API_KEY (free key at https://console.groq.com)
+
+# 5. Build the database, features, model, and derived artifacts (run once)
+python -m src.data.loader
+python -c "
+import duckdb, pandas as pd
+from src.data.preprocessor import build_feature_table
+con = duckdb.connect('data/credit_risk.duckdb')
+app_train = con.execute('SELECT * FROM applications').fetchdf()
+features = build_feature_table(app_train, con)
+features.to_parquet('data/features_train.parquet')
+"
+python -m src.ml.train
+python -m src.ml.evaluate
+python -m src.ml.rules
+
+# 6. Run the dashboard
+streamlit run ui/app.py
+```
+
+Open **http://localhost:8501**. Streamlit auto-reloads on file save — edit `ui/app.py` and the browser tab refreshes automatically (or press "Rerun" if auto-reload is off).
+
+### Modifying the dashboard
+
+`ui/app.py` is a single file with 5 sections, each in its own `elif page == "..."` block. The design tokens (colors, fonts) are the CSS block injected near the top — change `#0B1420`, `#3FA796`, etc. there to re-theme everything at once. After any model/feature changes, re-run step 5 above so the UI picks up the new artifacts.
+
+### Modifying the presentation
+
+The deck is generated from code, not hand-edited — this makes it easy to update consistently as the project changes.
+
+```bash
+npm install                          # installs pptxgenjs (only needed once)
+node scripts/build_presentation.js   # regenerates documents/Credit_Risk_Platform_Presentation.pptx
+```
+
+Edit `scripts/build_presentation.js` to change slide content, then re-run. Each slide is a clearly-labeled block (`SLIDE 1 — Title`, `SLIDE 2 — Objective`, etc.) — colors and fonts are the same design-token constants at the top of the file as the dashboard, so the two stay visually consistent.
+
+To convert to PDF after edits (matches the submission requirement):
+```bash
+soffice --headless --convert-to pdf documents/Credit_Risk_Platform_Presentation.pptx --outdir documents/
+```
+(Or just open the `.pptx` in PowerPoint/Keynote/Google Slides and export to PDF manually — it's a normal editable file.)

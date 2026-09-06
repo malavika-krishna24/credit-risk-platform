@@ -1,0 +1,9 @@
+{
+  "name": "credit-risk-platform-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node dependency for scripts/build_presentation.js (regenerates the PPTX deck)",
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}
