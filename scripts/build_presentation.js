@@ -113,29 +113,31 @@ function pageNum(s, n) {
   title(s, "Multi-table feature engineering, not just one CSV");
 
   s.addText(
-    "Most submissions on this dataset use application_train.csv alone. This platform joins three additional tables — aggregated in SQL for speed on 10M+ row tables — to capture signal a single-table model would miss.",
+    "Most submissions on this dataset use application_train.csv alone. This platform joins five additional tables — aggregated in SQL for speed on tables up to 27M rows — to capture signal a single-table model would miss.",
     { x: 0.6, y: 1.55, w: 12.1, h: 0.7, fontSize: 13.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true }
   );
 
   const tables = [
     ["applications", "307,511 rows", "Core applicant demographics & loan terms"],
-    ["bureau", "1.7M rows", "External credit bureau history — active/overdue loans, debt ratios"],
+    ["bureau + bureau_balance", "1.7M + 27.3M rows", "External credit history & monthly DPD status"],
     ["previous_applications", "1.7M rows", "This applicant's prior loans with the same lender"],
-    ["pos_cash_balance", "10M rows", "Monthly days-past-due (DPD) — direct repayment behavior signal"],
+    ["pos_cash_balance", "10M rows", "Monthly days-past-due (DPD) on cash/POS loans"],
+    ["credit_card_balance", "3.8M rows", "Monthly card balance & utilization — new default-risk signal"],
   ];
-  let x = 0.6;
+  let x = 0.5;
+  const cardW = 2.42;
   tables.forEach(([name, size, desc]) => {
     s.addShape(pres.ShapeType.roundRect, {
-      x, y: 2.55, w: 2.95, h: 3.6, rectRadius: 0.08,
+      x, y: 2.55, w: cardW, h: 3.6, rectRadius: 0.08,
       fill: { color: CARD }, line: { color: TEAL, width: 1 },
     });
-    s.addText(name, { x: x + 0.2, y: 2.8, w: 2.55, h: 0.6, fontSize: 15, bold: true, color: TEXT, fontFace: FONT_HEAD, isTextBox: true });
-    s.addText(size, { x: x + 0.2, y: 3.35, w: 2.55, h: 0.4, fontSize: 12, color: TEAL, fontFace: "Consolas", isTextBox: true });
-    s.addText(desc, { x: x + 0.2, y: 3.85, w: 2.55, h: 2.1, fontSize: 11.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true });
-    x += 3.13;
+    s.addText(name, { x: x + 0.15, y: 2.75, w: cardW - 0.3, h: 0.75, fontSize: 13, bold: true, color: TEXT, fontFace: FONT_HEAD, isTextBox: true });
+    s.addText(size, { x: x + 0.15, y: 3.45, w: cardW - 0.3, h: 0.4, fontSize: 10.5, color: TEAL, fontFace: "Consolas", isTextBox: true });
+    s.addText(desc, { x: x + 0.15, y: 3.9, w: cardW - 0.3, h: 2.1, fontSize: 10.5, color: MUTED, fontFace: FONT_BODY, isTextBox: true });
+    x += cardW + 0.18;
   });
 
-  s.addText("Result: 152 features across 4 tables, feeding a single unified model.", {
+  s.addText("Result: 165 features across 6 tables, feeding a single unified model.", {
     x: 0.6, y: 6.4, w: 12, h: 0.5, fontSize: 13, italic: true, color: TEAL, fontFace: FONT_BODY, isTextBox: true,
   });
   pageNum(s, 4);
@@ -172,10 +174,10 @@ function pageNum(s, n) {
 
   // Left: metrics cards
   const metrics = [
-    ["ROC-AUC", "0.778"],
-    ["PR-AUC", "0.273", ],
-    ["Recall @ 0.5", "66.2%"],
-    ["Features", "152"],
+    ["ROC-AUC", "0.780"],
+    ["PR-AUC", "0.277", ],
+    ["Recall @ 0.5", "66.7%"],
+    ["Features", "165"],
   ];
   let mx = 0.6;
   metrics.forEach(([label, val]) => {
@@ -195,10 +197,10 @@ function pageNum(s, n) {
      { text: "Validation ROC-AUC", options: { bold: true, color: TEXT, fill: { color: CARD } } },
      { text: "Notes", options: { bold: true, color: TEXT, fill: { color: CARD } } }],
     [{ text: "scale_pos_weight (production)", options: { color: TEXT } },
-     { text: "0.7782", options: { color: GREEN, bold: true } },
+     { text: "0.7804", options: { color: GREEN, bold: true } },
      { text: "Simpler, faster, no synthetic data", options: { color: MUTED } }],
     [{ text: "SMOTE (0.5 ratio)", options: { color: TEXT } },
-     { text: "0.7793", options: { color: TEXT } },
+     { text: "0.7792", options: { color: TEXT } },
      { text: "Statistically indistinguishable (difference = 0.001)", options: { color: MUTED } }],
   ];
   s.addTable(rows, {
@@ -271,7 +273,7 @@ function pageNum(s, n) {
     "SQL validator blocks: DDL/DML keywords, chained statements, hallucinated tables/columns",
     "Auto row-limiting + read-only DB connection as a second defense layer",
     "Tested against real adversarial inputs (DROP TABLE, injection, fake tables) \u2014 all correctly blocked",
-    "6 verified working query patterns (exceeds the required 5)",
+    "7 verified working query patterns (exceeds the required 5)",
   ];
   s.addText(notes.map((t, i) => ({ text: t, options: { bullet: true, breakLine: i < notes.length - 1, color: MUTED, fontSize: 11.8, paraSpaceAfter: 8 } })), {
     x: 0.5, y: 1.75, w: 3.2, h: 5.3, fontFace: FONT_BODY, isTextBox: true, valign: "top",
@@ -338,9 +340,9 @@ function pageNum(s, n) {
   title(s, "Known limitations & what's next");
 
   const items = [
-    ["Two Kaggle tables not yet joined", "bureau_balance.csv and credit_card_balance.csv would add further repayment signal on top of what's already used"],
+    ["installments_payments.csv not joined", "Repayment-timing signal is already substantially covered by POS_CASH_balance and credit_card_balance's own DPD tracking"],
     ["Risk-band thresholds are defaults", "Low/Medium/High cutoffs should be tuned against a real bank's approval/loss economics in production"],
-    ["Prediction form uses ~12 key fields", "Remaining ~140 features filled from population medians/modes \u2014 a deliberate UX tradeoff for a demo interface"],
+    ["Prediction form uses ~12 key fields", "Remaining ~153 features filled from population medians/modes \u2014 a deliberate UX tradeoff for a demo interface"],
     ["No monitoring/retraining pipeline", "A production deployment needs drift detection and scheduled retraining \u2014 out of scope here"],
   ];
   let y = 1.7;
