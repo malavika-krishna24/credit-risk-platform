@@ -192,7 +192,27 @@ def count_up_html(target: float, label: str, decimals: int = 0, suffix: str = ""
 
 @st.cache_data
 def load_features():
-    return pd.read_parquet("data/features_train.parquet")
+    """Loads the feature table and downcasts dtypes to cut memory footprint
+    by ~65-70% (float64->float32, int64->smallest safe int, object->category).
+    This matters a lot on Streamlit Community Cloud's free tier (1GB RAM) —
+    the raw parquet loads to ~400-430MB as float64/int64/object, which combined
+    with pandas/numpy/lightgbm/shap/numba's own ~200-300MB import footprint
+    was tipping the app over the memory limit and causing silent OOM kills
+    (no Python traceback, just a dead container) on navigation between pages."""
+    df = pd.read_parquet("data/features_train.parquet")
+
+    float_cols = df.select_dtypes(include=["float64"]).columns
+    df[float_cols] = df[float_cols].astype("float32")
+
+    int_cols = df.select_dtypes(include=["int64"]).columns
+    for c in int_cols:
+        df[c] = pd.to_numeric(df[c], downcast="integer")
+
+    str_cols = df.select_dtypes(include=["object", "string"]).columns
+    for c in str_cols:
+        df[c] = df[c].astype("category")
+
+    return df
 
 
 @st.cache_resource
@@ -431,7 +451,7 @@ elif page == "🎯 Risk Prediction":
                "medians/modes, matching how the model treats sparsely-available data in production.")
 
     numeric_defaults = df.drop(columns=["TARGET"]).median(numeric_only=True)
-    categorical_cols = df.select_dtypes(include=["object", "string"]).columns
+    categorical_cols = df.select_dtypes(include=["object", "string", "category"]).columns
     categorical_defaults = df[categorical_cols].mode().iloc[0]
     defaults = pd.concat([numeric_defaults, categorical_defaults])
 
