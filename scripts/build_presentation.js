@@ -281,10 +281,11 @@ function pageNum(s, n) {
     "SQL validator blocks: DDL/DML keywords, chained statements, hallucinated tables/columns",
     "Auto row-limiting + read-only DB connection as a second defense layer",
     "Tested against real adversarial inputs (DROP TABLE, injection, fake tables) \u2014 all correctly blocked",
-    "7 verified working query patterns (exceeds the required 5)",
+    "8 working query patterns (exceeds the required 5), incl. a 2-CTE stress test",
+    "2 real bugs found + fixed via hard questions: CTE aliases misread as tables; REPLACE() vs REPLACE INTO",
   ];
-  s.addText(notes.map((t, i) => ({ text: t, options: { bullet: true, breakLine: i < notes.length - 1, color: MUTED, fontSize: 11.8, paraSpaceAfter: 8 } })), {
-    x: 0.5, y: 1.75, w: 3.2, h: 5.3, fontFace: FONT_BODY, isTextBox: true, valign: "top",
+  s.addText(notes.map((t, i) => ({ text: t, options: { bullet: true, breakLine: i < notes.length - 1, color: MUTED, fontSize: 11, paraSpaceAfter: 7 } })), {
+    x: 0.5, y: 1.7, w: 3.25, h: 5.4, fontFace: FONT_BODY, isTextBox: true, valign: "top",
   });
   pageNum(s, 9);
 }

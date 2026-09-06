@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.ml.predict import predict_risk, prepare_features
 from src.ml.explain import explain_prediction, plain_english_summary
@@ -86,6 +87,23 @@ h1, h2, h3 { font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; letter-
     background: #3FA796; margin-right: 6px; animation: pulse 2s ease-in-out infinite;
 }
 
+.hero {
+    padding: 2rem 2.3rem;
+    border-radius: 14px;
+    background: linear-gradient(120deg, #0B1420 0%, #132436 45%, #0F3A34 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 10s ease infinite, fadeInUp 0.6s ease-out both;
+    border: 1px solid rgba(63,167,150,0.25);
+    margin-bottom: 1.4rem;
+}
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+.hero h1 { color: #F2F6FA; }
+.hero p { color: #A9B7C6; font-size: 1.02rem; max-width: 760px; }
+
 .kpi-number { font-family: 'IBM Plex Mono', monospace; font-size: 2.1rem; font-weight: 500; color: #E8EDF3; }
 .kpi-label { font-size: 0.85rem; color: #8A97AB; margin-bottom: 0.2rem; }
 .insight-line { border-left: 3px solid #3FA796; padding-left: 0.9rem; margin: 0.6rem 0; color: #C7D1DD; animation: fadeInUp 0.5s ease-out both; }
@@ -111,6 +129,65 @@ PLOTLY_LAYOUT = dict(
     font={"color": TEXT, "family": "IBM Plex Sans"},
     margin=dict(l=10, r=20, t=50, b=10),
 )
+
+
+def count_up_html(target: float, label: str, decimals: int = 0, suffix: str = "", duration_ms: int = 900) -> str:
+    """Self-contained JS component: animates 0 -> target on render.
+
+    IMPORTANT: components.html renders inside its own sandboxed <iframe>, which
+    does NOT inherit the page-level <style> block injected via st.markdown.
+    Every rule the card needs (colors, font, background, animation) must be
+    declared right here, or text renders in the browser's default black on a
+    transparent background and disappears against the dark theme.
+    """
+    elem_id = f"cu_{abs(hash((label, target)))}"
+    return f"""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+        html, body {{ margin: 0; padding: 0; background: transparent; }}
+        .cu-card {{
+            font-family: 'IBM Plex Sans', sans-serif;
+            padding: 1.2rem 1.4rem;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: #131F30;
+            box-sizing: border-box;
+            opacity: 0;
+            transform: translateY(10px) scale(0.98);
+            animation: cuFadeIn 0.5s ease forwards;
+        }}
+        @keyframes cuFadeIn {{
+            to {{ opacity: 1; transform: translateY(0) scale(1); }}
+        }}
+        .cu-label {{ font-size: 0.85rem; color: #8A97AB; margin-bottom: 0.3rem; }}
+        .cu-number {{
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 2.1rem; font-weight: 500; color: #E8EDF3;
+        }}
+    </style>
+    <div class="cu-card">
+        <div class="cu-label">{label}</div>
+        <div class="cu-number" id="{elem_id}">0{suffix}</div>
+    </div>
+    <script>
+    (function() {{
+        const el = document.getElementById("{elem_id}");
+        const target = {target};
+        const duration = {duration_ms};
+        const decimals = {decimals};
+        const start = performance.now();
+        function step(ts) {{
+            const progress = Math.min((ts - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const val = target * eased;
+            const formatted = val.toLocaleString('en-US', {{ minimumFractionDigits: decimals, maximumFractionDigits: decimals }});
+            el.textContent = formatted + "{suffix}";
+            if (progress < 1) requestAnimationFrame(step);
+        }}
+        requestAnimationFrame(step);
+    }})();
+    </script>
+    """
 
 
 @st.cache_data
@@ -213,37 +290,32 @@ model, meta = load_model_and_meta()
 # PAGE: Overview
 # ---------------------------------------------------------------------------
 if page == "🏠 Overview":
-    st.title("Credit Risk Intelligence Platform")
-    st.write(
-        "A lightweight, explainable platform for scoring loan-default risk, "
-        "built on the Home Credit Default Risk dataset — multi-table feature "
-        "engineering, a calibrated ML model, SHAP explainability, derived "
-        "business rules, and a natural-language chatbot over the underlying data."
+    st.markdown(
+        '<div class="hero"><h1 style="margin:0;">Credit Risk Intelligence Platform</h1>'
+        '<p style="margin-top:0.6rem;">A lightweight, explainable platform for scoring loan-default risk — '
+        'multi-table feature engineering, a calibrated LightGBM model, SHAP explainability, derived '
+        'business rules, and a guardrailed natural-language chatbot over the underlying data.</p></div>',
+        unsafe_allow_html=True,
     )
 
     cols = st.columns(4)
     kpis = [
-        ("Applicants", f"{len(df):,}"),
-        ("Default Rate", format_percent(df['TARGET'].mean())),
-        ("Model ROC-AUC", f"{meta['metrics']['roc_auc']:.3f}"),
-        ("Features Used", f"{len(meta['feature_names'])}"),
+        (len(df), "Applicants", 0, ""),
+        (df['TARGET'].mean() * 100, "Default Rate", 1, "%"),
+        (meta['metrics']['roc_auc'], "Model ROC-AUC", 3, ""),
+        (len(meta['feature_names']), "Features Used", 0, ""),
     ]
-    for i, (col, (label, val)) in enumerate(zip(cols, kpis)):
+    for col, (value, label, decimals, suffix) in zip(cols, kpis):
         with col:
-            st.markdown(
-                f'<div class="kpi-card" style="animation-delay:{i*0.08}s;">'
-                f'<div class="kpi-label"><span class="live-dot"></span>{label}</div>'
-                f'<div class="kpi-number">{val}</div></div>',
-                unsafe_allow_html=True,
-            )
+            components.html(count_up_html(value, label, decimals=decimals, suffix=suffix), height=118)
 
     st.markdown("### How this platform is put together")
     st.markdown("""
     - **Data Exploration** — dataset summary, data quality, and business insights from the raw + joined tables
-    - **Risk Prediction** — score a new applicant and get a Low / Medium / High risk band
-    - **Explainability** — SHAP-based, plain-English reasons behind any prediction
+    - **Risk Prediction** — score a new applicant and get a Low / Medium / High risk band on a live gauge
+    - **Explainability** — SHAP-based, plain-English reasons behind any prediction, ranked visually
     - **Business Rules** — auditable IF-THEN rules mined from the model, with measured lift
-    - **Talk to Data** — ask questions about the applicant data in plain English
+    - **Talk to Data** — ask questions about the applicant data in plain English, chat-style
     """)
 
 # ---------------------------------------------------------------------------
@@ -439,7 +511,7 @@ elif page == "🔍 Explainability":
         X = prepare_features(applicant_df, meta)
         explanation = explain_prediction(model, X, top_n=8)
 
-        st.markdown(f'{risk_badge_html(band)} &nbsp; **Default probability: {proba*100:.1f}%**', unsafe_allow_html=True)
+        st.markdown(f'{risk_badge_html(band)} &nbsp; **Default probability: {format_percent(proba)}**', unsafe_allow_html=True)
         st.write("")
         st.write("**Summary:** " + plain_english_summary(explanation))
         st.write("")
@@ -503,39 +575,67 @@ elif page == "💬 Talk to Data":
 
     from src.talk_to_data.nl_to_sql import ask, SAMPLE_QUESTIONS
     from src.utils.config import GROQ_API_KEY
+    import time as _time
 
     if not GROQ_API_KEY:
         st.error("GROQ_API_KEY is not set. Add it to your .env file (free key at console.groq.com) to use this feature.")
     else:
+        if "chat_history" not in st.session_state:
+            st.session_state["chat_history"] = []  # list of dicts: role, content, sql, data
+
         st.write("**Try one of these, or type your own question:**")
         cols = st.columns(3)
+        sample_clicked = None
         for i, q in enumerate(SAMPLE_QUESTIONS):
-            if cols[i % 3].button(q, key=f"sample_{i}", use_container_width=True):
-                st.session_state["chat_question"] = q
+            label = q if len(q) <= 60 else q[:57] + "..."
+            if cols[i % 3].button(label, key=f"sample_{i}", use_container_width=True, help=q):
+                sample_clicked = q
 
-        question = st.text_input("Your question", value=st.session_state.get("chat_question", ""))
+        # Replay prior turns as chat bubbles
+        for turn in st.session_state["chat_history"]:
+            with st.chat_message(turn["role"]):
+                st.write(turn["content"])
+                if turn.get("sql"):
+                    with st.expander("SQL query used"):
+                        st.code(turn["sql"], language="sql")
+                if turn.get("data") is not None and len(turn["data"]) > 0:
+                    st.dataframe(turn["data"], use_container_width=True)
 
-        if st.button("Ask", type="primary") and question:
-            status_placeholder = st.empty()
-            steps = ["🧠 Understanding your question...", "🔎 Generating SQL query...",
-                     "🛡️ Validating against safety rules...", "⚡ Querying the database...",
-                     "✍️ Writing a plain-English answer..."]
-            import time as _time
-            for step in steps[:2]:
-                status_placeholder.markdown(f'<div class="insight-line">{step}</div>', unsafe_allow_html=True)
-                _time.sleep(0.35)
-            result = ask(question)
-            status_placeholder.empty()
+        question = sample_clicked or st.chat_input("Ask a question about the applicant data...")
 
-            st.markdown(f'<div class="chat-bubble-user">🧑 {question}</div>', unsafe_allow_html=True)
+        if question:
+            with st.chat_message("user"):
+                st.write(question)
+            st.session_state["chat_history"].append({"role": "user", "content": question})
 
-            if result["sql"]:
-                with st.expander("SQL query used"):
-                    st.code(result["sql"], language="sql")
+            with st.chat_message("assistant"):
+                status_placeholder = st.empty()
+                steps = ["🧠 Understanding your question...", "🔎 Generating SQL query...",
+                         "🛡️ Validating against safety rules...", "⚡ Querying the database..."]
+                for step in steps[:2]:
+                    status_placeholder.markdown(f'<div class="insight-line">{step}</div>', unsafe_allow_html=True)
+                    _time.sleep(0.3)
+                result = ask(question)
+                status_placeholder.empty()
 
-            if result["success"]:
-                st.markdown(f'<div class="chat-bubble-answer">🤖 {result["answer"]}</div>', unsafe_allow_html=True)
-                if result["data"] is not None and len(result["data"]) > 0:
+                if result["sql"]:
+                    with st.expander("SQL query used"):
+                        st.code(result["sql"], language="sql")
+
+                # word-by-word reveal for a more conversational feel
+                placeholder = st.empty()
+                shown = ""
+                for word in result["answer"].split(" "):
+                    shown += word + " "
+                    placeholder.markdown(shown)
+                    _time.sleep(0.012)
+
+                if result["success"] and result["data"] is not None and len(result["data"]) > 0:
                     st.dataframe(result["data"], use_container_width=True)
-            else:
-                st.markdown(f'<div class="chat-bubble-answer">🤖 {result["answer"]}</div>', unsafe_allow_html=True)
+
+            st.session_state["chat_history"].append({
+                "role": "assistant",
+                "content": result["answer"],
+                "sql": result["sql"],
+                "data": result["data"] if result["success"] else None,
+            })

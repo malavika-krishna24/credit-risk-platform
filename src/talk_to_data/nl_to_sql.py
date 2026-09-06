@@ -36,16 +36,35 @@ def get_client() -> Groq:
 def generate_sql(question: str) -> str:
     """Ask the LLM to translate the question into SQL. Low temperature for
     consistent, deterministic-leaning SQL generation (token optimization: this
-    also reduces retries from malformed/creative SQL)."""
+    also reduces retries from malformed/creative SQL).
+
+    NOTE on reasoning models (e.g. openai/gpt-oss-120b via Groq): these models
+    spend part of their token budget on an internal reasoning pass before
+    writing the actual answer. On hard, multi-table/CTE questions that need
+    more reasoning, a low max_tokens can be entirely consumed by that reasoning
+    pass, leaving an EMPTY message.content — which the validator then
+    (correctly) rejects as "Empty query", surfacing as a confusing "failed
+    safety validation" message that has nothing to do with safety. Mitigated
+    two ways: (1) cap reasoning_effort so less of the budget goes to thinking
+    (ignored harmlessly by non-reasoning models that don't accept the param),
+    and (2) retry once with a larger token budget if content still comes back
+    empty."""
     client = get_client()
     messages = build_sql_prompt(question)
-    response = client.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=messages,
-        temperature=0.1,
-        max_tokens=400,
-    )
-    sql = response.choices[0].message.content.strip()
+
+    def _call(max_tokens: int) -> str:
+        kwargs = dict(model=GROQ_MODEL, messages=messages, temperature=0.1, max_tokens=max_tokens)
+        if "gpt-oss" in GROQ_MODEL.lower():
+            kwargs["reasoning_effort"] = "low"
+        response = client.chat.completions.create(**kwargs)
+        content = response.choices[0].message.content or ""
+        return content.strip()
+
+    sql = _call(max_tokens=700)
+    if not sql:
+        logger.warning("Empty SQL content on first attempt (likely reasoning-token exhaustion) — retrying with a larger budget.")
+        sql = _call(max_tokens=1200)
+
     # Strip accidental markdown code fences if the model adds them despite instructions
     sql = sql.replace("```sql", "").replace("```", "").strip()
     return sql
@@ -58,13 +77,12 @@ def summarize_result(question: str, sql: str, result_df) -> str:
     client = get_client()
     result_rows = result_df.to_dict(orient="records")
     messages = build_answer_prompt(question, sql, result_rows)
-    response = client.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=messages,
-        temperature=0.2,
-        max_tokens=300,
-    )
-    return response.choices[0].message.content.strip()
+    kwargs = dict(model=GROQ_MODEL, messages=messages, temperature=0.2, max_tokens=400)
+    if "gpt-oss" in GROQ_MODEL.lower():
+        kwargs["reasoning_effort"] = "low"
+    response = client.chat.completions.create(**kwargs)
+    return (response.choices[0].message.content or "").strip() or \
+        f"Query ran successfully and returned {len(result_df)} row(s)."
 
 
 def ask(question: str) -> dict:
@@ -115,4 +133,12 @@ SAMPLE_QUESTIONS = [
     "How many applicants were previously refused a loan by this lender?",
     "What is the average credit amount for female vs male applicants?",
     "What's the average credit card utilization for applicants who defaulted?",
+    # Stress-test example: needs a CTE + cohort comparison. This is the kind of
+    # question that surfaced the CTE-name and REPLACE() false-positive bugs
+    # fixed in query_runner.py — kept here as a live demonstration rather than
+    # only described in the README.
+    "Among applicants who have at least 2 overdue loans at the credit bureau, "
+    "what percentage also had a previous loan application rejected by this lender, "
+    "and how does their default rate compare to applicants with overdue bureau loans "
+    "but no prior rejection?",
 ]

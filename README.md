@@ -190,10 +190,12 @@ Sample output (from `documents/derived_business_rules.csv`):
 
 ## 9. Talk-to-Data: Prompt Engineering & Hallucination Control
 
-**LLM provider:** [Groq](https://console.groq.com) (GPT-OSS 120B) — chosen over OpenAI/Anthropic because it has a genuinely free tier (no card required), which matters since an evaluator running this repo shouldn't need to spend their own money, and its inference speed keeps the chatbot feeling responsive.
+**LLM provider:** [Groq](https://console.groq.com) running `openai/gpt-oss-120b` — chosen over OpenAI/Anthropic because it has a genuinely free tier (no card required), which matters since an evaluator running this repo shouldn't need to spend their own money, and its inference speed keeps the chatbot feeling responsive.
+
+**Reasoning-model token handling:** `gpt-oss-120b` is a reasoning model — it spends part of its token budget on an internal reasoning pass before writing the actual output. On a hard, multi-table CTE question, that reasoning pass can consume the entire `max_tokens` budget, leaving an **empty** SQL string that the validator correctly rejects — surfacing as a "failed safety validation" message that has nothing to do with safety. Fixed by passing `reasoning_effort="low"` on every call to a gpt-oss model, raising the token ceiling (400→700, with an automatic retry at 1200 if content still comes back empty), and null-checking `message.content` before calling `.strip()` on it.
 
 **Two-stage prompting** (`src/talk_to_data/prompt_templates.py`):
-1. **SQL generation** — the LLM is given an explicit, exhaustive schema description (only 4 real tables, exact column names/types) and few-shot examples, and instructed to output *only* SQL, `LIMIT`-bounded, or a `NO_QUERY:` refusal if the question is unanswerable from the schema. Temperature 0.1 for consistency.
+1. **SQL generation** — the LLM is given an explicit, exhaustive schema description (all 6 real tables, exact column names/types) and few-shot examples, and instructed to output *only* SQL, `LIMIT`-bounded, or a `NO_QUERY:` refusal if the question is unanswerable from the schema. Temperature 0.1 for consistency.
 2. **Answer summarization** — a second, separate LLM call is given the *actual returned rows* (not the question alone) and asked to summarize only what's in that data. This grounds the answer and prevents the model from inventing numbers not present in the query result.
 
 **Hallucination/injection control is enforced in code, not just prompted for** (`src/talk_to_data/query_runner.py`):
@@ -205,15 +207,23 @@ Sample output (from `documents/derived_business_rules.csv`):
 
 All of the above was tested against real adversarial inputs (`DROP TABLE`, chained-statement injection, a hallucinated table name) during development — all were correctly blocked while legitimate queries passed through unmodified.
 
-**Token optimization:** the schema description is written once and reused for every request (no re-fetching or re-describing schema per query); `max_tokens` is capped per call (400 for SQL generation, 300 for answer summarization) since both outputs are naturally short.
+**Two false positives found and fixed** while testing genuinely hard questions (not just malicious ones) — both verified against the real 6-table database, not just described:
+1. **CTE names misread as hallucinated tables.** Any question needing a `WITH ... AS (...)` structure (e.g. comparing two derived cohorts) had its own CTE aliases flagged as "unknown tables," since the allow-list check couldn't distinguish a query's self-defined subquery names from a real table. Fixed by collecting CTE names first and excluding them from the unknown-table check.
+2. **`REPLACE()` the string function confused with `REPLACE INTO` the destructive statement.** The forbidden-keyword scan banned the word `REPLACE` outright to block `REPLACE INTO ...`, which also silently blocked the ordinary string function `REPLACE(col, 'a', 'b')`. Fixed by only blocking the specific `REPLACE INTO` phrase.
 
-**Sample working queries** (6, exceeding the required 5 — see `SAMPLE_QUESTIONS` in `nl_to_sql.py`, all validated against the real database):
+Both were caught by deliberately asking harder questions than the 7 samples below, not just by testing attacks — worth doing for any NL-to-SQL layer, since a validator tuned only against malicious input will still have blind spots against legitimate complexity.
+
+**Token optimization:** the schema description is written once and reused for every request (no re-fetching or re-describing schema per query). `max_tokens` is capped per call — 700 for SQL generation (with a retry at 1200 only if the first attempt comes back empty) and 400 for answer summarization — since both outputs are naturally short, and the retry path only fires on the rare hard question rather than spending extra tokens on every call.
+
+**Sample working queries** (8, exceeding the required 5 — see `SAMPLE_QUESTIONS` in `nl_to_sql.py`, all validated against the real database):
 1. "What is the average income of applicants who defaulted vs those who didn't?"
 2. "How many applicants have more than 2 overdue bureau loans?"
 3. "What's the default rate for applicants with a college education?"
 4. "Show me the top 10 organization types by average credit amount."
 5. "How many applicants were previously refused a loan by this lender?"
 6. "What is the average credit amount for female vs male applicants?"
+7. "What's the average credit card utilization for applicants who defaulted?"
+8. **Stress-test example** — "Among applicants who have at least 2 overdue loans at the credit bureau, what percentage also had a previous loan application rejected by this lender, and how does their default rate compare to applicants with overdue bureau loans but no prior rejection?" (needs a 2-CTE join + cohort comparison; this is the question that surfaced both bugs above. Verified result on the real database: 55.0% of the 220-applicant overdue-2+ cohort also has a prior rejection (n=121 vs n=99); default rate for both sub-cohorts happens to be identical at 36.4% in this sample — a genuine small-sample coincidence, 36/99 and 44/121 both reduce to exactly 4/11, not a bug. At this sample size the data doesn't support a confident directional claim either way, which is itself a fair, honest answer for a model to give.)
 
 ---
 

@@ -64,15 +64,26 @@ def validate_sql(sql: str) -> str:
     if first_word not in {"SELECT", "WITH"}:
         raise SQLValidationError(f"Only SELECT queries are allowed (got '{first_word}').")
 
-    # Forbidden keyword scan (word-boundary match)
+    # Forbidden keyword scan (word-boundary match). REPLACE is handled
+    # separately below: it's also a legitimate string function (e.g.
+    # REPLACE(col, 'a', 'b')), so a blanket ban would wrongly reject any
+    # query doing ordinary string cleanup — only the destructive
+    # "REPLACE INTO ..." statement form should be blocked.
     upper_sql = cleaned.upper()
-    for kw in FORBIDDEN_KEYWORDS:
+    for kw in FORBIDDEN_KEYWORDS - {"REPLACE"}:
         if re.search(rf"\b{kw}\b", upper_sql):
             raise SQLValidationError(f"Forbidden keyword detected: {kw}")
+    if re.search(r"\bREPLACE\s+INTO\b", upper_sql):
+        raise SQLValidationError("Forbidden keyword detected: REPLACE INTO")
 
-    # Table allow-list check — extract identifiers after FROM/JOIN
+    # Table allow-list check — extract identifiers after FROM/JOIN.
+    # CTE names (from a WITH clause) are NOT real tables — they're aliases the
+    # query defines for itself — so they must be collected and excluded here,
+    # or any query complex enough to need a CTE gets wrongly rejected as
+    # referencing a "hallucinated" table.
+    cte_names = set(re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\(", cleaned, re.IGNORECASE))
     referenced_tables = set(re.findall(r"\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)", cleaned, re.IGNORECASE))
-    unknown_tables = referenced_tables - ALLOWED_TABLES
+    unknown_tables = referenced_tables - ALLOWED_TABLES - cte_names
     if unknown_tables:
         raise SQLValidationError(f"Unknown table(s) referenced: {unknown_tables}. "
                                   f"Allowed tables: {ALLOWED_TABLES}")
