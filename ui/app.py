@@ -167,7 +167,10 @@ elif page == "Risk Prediction":
     st.caption("Fill in the key fields below — the remaining ~130 model features are filled with population "
                "medians/modes, matching how the model treats sparsely-available data in production.")
 
-    defaults = df.drop(columns=["TARGET"]).median(numeric_only=True)
+    numeric_defaults = df.drop(columns=["TARGET"]).median(numeric_only=True)
+    categorical_cols = df.select_dtypes(include=["object", "string"]).columns
+    categorical_defaults = df[categorical_cols].mode().iloc[0]
+    defaults = pd.concat([numeric_defaults, categorical_defaults])
 
     with st.form("prediction_form"):
         c1, c2, c3 = st.columns(3)
